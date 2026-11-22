@@ -8,6 +8,7 @@
 #SBATCH -o logs/%x-%j.out
 
 # 300 training steps per setting, to measure speed and memory (results are not used)
+export TRITON_DEFAULT_FP_FUSION=1
 nvidia-smi --query-gpu=name --format=csv,noheader
 for model in baseline match; do
   for micro in "64 1" "32 2"; do
