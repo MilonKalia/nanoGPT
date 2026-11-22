@@ -10,3 +10,9 @@ __pycache__/
 input.txt
 env/
 venv/
+# enwik8 fork
+out/
+logs/
+.venv/
+data/enwik8/enwik8
+data/enwik8/enwik8.zip
