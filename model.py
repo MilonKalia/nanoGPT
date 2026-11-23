@@ -36,6 +36,7 @@ class GPTConfig:
     match_bias_layers: int = -1   # bias in the first k layers; -1 = all layers
     match_max_len: int = mb.MAX_MATCH
     attn_backend: str = "flex"    # flex (GPU) | reference (materialised bias, any device)
+    match_bias_replicas: int = 1  # flex only: copies of the table that share its gradient work
 
 
 class RMSNorm(nn.Module):
@@ -74,9 +75,18 @@ def causal_block_mask(seq_len, device):
     return _BLOCK_MASKS[key]
 
 
-def biased_attention_flex(q, k, v, table, buckets, block_mask):
-    def score_mod(score, b, h, q_idx, kv_idx):
-        return score + table[h, buckets[b, q_idx, kv_idx].to(torch.int32)]
+def biased_attention_flex(q, k, v, table, buckets, block_mask, replicas=1):
+    if replicas == 1:
+        def score_mod(score, b, h, q_idx, kv_idx):
+            return score + table[h, buckets[b, q_idx, kv_idx].to(torch.int32)]
+    else:
+        # FlexAttention accumulates the bias gradient with atomic adds; with a tiny table every
+        # score adds into the same few addresses. Identical copies indexed by key position spread
+        # those adds out; autograd sums the copies' gradients back into the one parameter.
+        table_copies = table.unsqueeze(-1).expand(*table.shape, replicas).contiguous()
+
+        def score_mod(score, b, h, q_idx, kv_idx):
+            return score + table_copies[h, buckets[b, q_idx, kv_idx].to(torch.int32), kv_idx % replicas]
     return flex_attention(q, k, v, score_mod=score_mod, block_mask=block_mask)
 
 
@@ -96,6 +106,7 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.head_dim = config.n_embd // config.n_head
         self.backend = config.attn_backend
+        self.replicas = config.match_bias_replicas
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         self.resid_dropout = nn.Dropout(config.dropout)
@@ -112,7 +123,7 @@ class CausalSelfAttention(nn.Module):
         if self.match_table is None:
             y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
         elif self.backend == "flex":
-            y = biased_attention_flex(q, k, v, self.match_table, buckets, block_mask)
+            y = biased_attention_flex(q, k, v, self.match_table, buckets, block_mask, self.replicas)
         else:
             y = biased_attention_reference(q, k, v, self.match_table, buckets)
         y = y.transpose(1, 2).contiguous().view(B, T, C)

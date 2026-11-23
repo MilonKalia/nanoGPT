@@ -86,6 +86,12 @@ def test_flex_attention_forward_matches_reference_on_cpu():
     assert torch.allclose(out_flex, biased_attention_reference(q, k, v, table, buckets), atol=1e-5)
 
 
+def test_flex_attention_with_table_copies_matches_reference_on_cpu():
+    q, k, v, table, buckets = random_attention_inputs()
+    out = biased_attention_flex(q, k, v, table, buckets, causal_block_mask(q.size(-2), 'cpu'), replicas=8)
+    assert torch.allclose(out, biased_attention_reference(q, k, v, table, buckets), atol=1e-5)
+
+
 def test_zero_table_equals_plain_causal_attention():
     q, k, v, table, buckets = random_attention_inputs()
     zero = torch.zeros_like(table)
@@ -94,12 +100,13 @@ def test_zero_table_equals_plain_causal_attention():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a GPU (FlexAttention backward)")
-def test_compiled_flex_matches_reference_values_and_gradients_on_gpu():
+@pytest.mark.parametrize("replicas", [1, 64])
+def test_compiled_flex_matches_reference_values_and_gradients_on_gpu(replicas):
     q, k, v, table, buckets = random_attention_inputs(B=2, H=4, T=256, D=64)
     tensors = [t.cuda().requires_grad_() for t in (q, k, v, table)]
     buckets = buckets.cuda()
     flex = torch.compile(biased_attention_flex)
-    out_flex = flex(*tensors, buckets, causal_block_mask(256, 'cuda'))
+    out_flex = flex(*tensors, buckets, causal_block_mask(256, 'cuda'), replicas)
     grads_flex = torch.autograd.grad(out_flex.square().sum(), tensors)
     out_ref = biased_attention_reference(*tensors, buckets)
     grads_ref = torch.autograd.grad(out_ref.square().sum(), tensors)

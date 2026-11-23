@@ -49,6 +49,7 @@ rope_base = 10000.0
 match_bias = 'none'  # none | graded | single | shuffled
 match_bias_layers = -1
 attn_backend = 'flex'
+match_bias_replicas = 1
 # adamw optimizer
 learning_rate = 1e-3
 max_iters = 30000  # overridden by max_bytes
@@ -114,7 +115,8 @@ with open(os.path.join(data_dir, 'meta.pkl'), 'rb') as f:
 
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size, vocab_size=vocab_size,
                   mlp_hidden=mlp_hidden, dropout=dropout, rope_base=rope_base, match_bias=match_bias,
-                  match_bias_layers=match_bias_layers, attn_backend=attn_backend)
+                  match_bias_layers=match_bias_layers, attn_backend=attn_backend,
+                  match_bias_replicas=match_bias_replicas)
 ckpt_path = os.path.join(out_dir, 'ckpt.pt')
 if init_from == 'auto':
     init_from = 'resume' if os.path.exists(ckpt_path) else 'scratch'
