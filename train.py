@@ -35,8 +35,8 @@ init_from = 'auto'  # 'scratch', 'resume', or 'auto' (resume if out_dir/ckpt.pt 
 max_runtime_minutes = 0.0  # >0: save and stop cleanly before a batch-job time limit
 # data
 data_dir = 'data/enwik8'
-gradient_accumulation_steps = 2
-batch_size = 32  # micro-batch; bytes per step = grad_accum * batch_size * block_size
+gradient_accumulation_steps = 1
+batch_size = 64  # micro-batch; bytes per step = grad_accum * batch_size * block_size
 block_size = 1024
 max_bytes = 2_000_000_000  # training budget in bytes; sets max_iters when > 0
 # model
@@ -49,7 +49,7 @@ rope_base = 10000.0
 match_bias = 'none'  # none | graded | single | shuffled
 match_bias_layers = -1
 attn_backend = 'flex'
-match_bias_replicas = 1
+match_bias_replicas = 1024  # 54x faster bias backward than 1 copy (tools/bench_attention.py)
 # adamw optimizer
 learning_rate = 1e-3
 max_iters = 30000  # overridden by max_bytes

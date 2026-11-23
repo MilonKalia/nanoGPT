@@ -36,7 +36,7 @@ class GPTConfig:
     match_bias_layers: int = -1   # bias in the first k layers; -1 = all layers
     match_max_len: int = mb.MAX_MATCH
     attn_backend: str = "flex"    # flex (GPU) | reference (materialised bias, any device)
-    match_bias_replicas: int = 1  # flex only: copies of the table that share its gradient work
+    match_bias_replicas: int = 1024  # flex only: copies of the table that share its gradient work
 
 
 class RMSNorm(nn.Module):
