@@ -106,6 +106,15 @@ def test_attention_probs_follow_the_model(tmp_path):
     assert torch.allclose(block.attn.c_proj(y), expected, atol=1e-5)
 
 
+def test_curves_deduplicate_resumed_iterations(tmp_path):
+    pc = load_tool("plot_curves")
+    with open(tmp_path / "metrics.jsonl", "w") as f:
+        for it, v in [(0, 8.0), (250, 2.0), (500, 1.9), (500, 1.95), (750, 1.8)]:
+            f.write(json.dumps(dict(iter=it, bytes=it * 1000, val_bpc=v, train_bpc=v, lr=0, elapsed_s=0)) + "\n")
+    its, _, val = pc.load(tmp_path)
+    assert its.tolist() == [250, 500, 750] and val.tolist() == [2.0, 1.95, 1.8]
+
+
 def test_tools_run_end_to_end(tmp_path):
     tiny_checkpoint(tmp_path / "match.pt", "graded")
     tiny_checkpoint(tmp_path / "base.pt", "none")

@@ -17,10 +17,18 @@ COLORS = ('#2a78d6', '#eb6834', '#1baf7a', '#eda100')
 
 
 def load(run_dir):
+    """(iterations, bytes in billions, dev bpc), one row per iteration: a resumed run logs the
+    iteration it resumed from twice, and the later entry is kept."""
+    by_iter = {}
     with open(os.path.join(run_dir, 'metrics.jsonl')) as f:
-        rows = [json.loads(line) for line in f if line.strip()]
-    rows = [r for r in rows if r['iter'] > 0]
-    return np.array([r['bytes'] for r in rows]) / 1e9, np.array([r['val_bpc'] for r in rows])
+        for line in f:
+            if line.strip():
+                row = json.loads(line)
+                if row['iter'] > 0:
+                    by_iter[row['iter']] = row
+    its = sorted(by_iter)
+    return (np.array(its), np.array([by_iter[i]['bytes'] for i in its]) / 1e9,
+            np.array([by_iter[i]['val_bpc'] for i in its]))
 
 
 def smooth(y, k=5):
@@ -57,9 +65,10 @@ def main():
     for spec in args.pair:
         label, dirs = spec.split('=', 1)
         base_dir, match_dir = dirs.split(',')
-        (xb, yb), (xm, ym) = load(base_dir), load(match_dir)
-        n = min(len(xb), len(xm))
-        pairs.append((label, xb[:n], yb[:n], ym[:n]))
+        (ib, xb, yb), (im, _, ym) = load(base_dir), load(match_dir)
+        common = np.intersect1d(ib, im)
+        keep_b, keep_m = np.isin(ib, common), np.isin(im, common)
+        pairs.append((label, xb[keep_b], yb[keep_b], ym[keep_m]))
 
     label, x, yb, ym = pairs[0]
     fig, ax = plt.subplots(figsize=(6.4, 3.6))
