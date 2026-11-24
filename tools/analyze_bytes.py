@@ -96,28 +96,36 @@ def print_table(title, rows):
               f"{r['difference']:+8.4f} {r['share_of_gain']:11.1%}")
 
 
+def tick_labels(rows):
+    """Group name with its share of bytes underneath; long class names wrap at the slash."""
+    return [r['group'].replace('/', '/\n') + f"\n({r['share_of_bytes']:.1%})" for r in rows]
+
+
 def plot_groups(rows, title, path):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    labels = [r['group'] for r in rows]
     diffs = [r['difference'] for r in rows]
-    shares = [r['share_of_bytes'] for r in rows]
-    fig, ax = plt.subplots(figsize=(6.4, 3.4))
-    bars = ax.bar(labels, diffs, color='#eb6834', width=0.6)
+    fig, ax = plt.subplots(figsize=(7.0, 3.6))
+    x = range(len(rows))
+    bars = ax.bar(x, diffs, color='#eb6834', width=0.6)
     ax.axhline(0, color='#52514e', linewidth=1)
-    for bar, d, s in zip(bars, diffs, shares):
+    for bar, d in zip(bars, diffs):
         y = bar.get_height()
-        ax.annotate(f"{d:+.3f}\n({s:.1%} of bytes)", (bar.get_x() + bar.get_width() / 2, y),
-                    xytext=(0, -4 if y < 0 else 4), textcoords='offset points',
+        ax.annotate(f"{d:+.3f}", (bar.get_x() + bar.get_width() / 2, y),
+                    xytext=(0, -3 if y < 0 else 3), textcoords='offset points',
                     ha='center', va='top' if y < 0 else 'bottom', fontsize=8, color='#0b0b0b')
-    ax.set_ylabel('bpc difference (match − baseline)')
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(tick_labels(rows), fontsize=8)
+    ax.set_xlabel('group (share of bytes)', fontsize=8)
+    ax.set_ylabel('bpc difference (match − baseline)', fontsize=8)
     ax.set_title(title, fontsize=10, loc='left')
     ax.spines[['top', 'right']].set_visible(False)
     ax.grid(axis='y', color='#e5e4e0', linewidth=0.8)
     ax.set_axisbelow(True)
-    lo = min(diffs + [0])
-    ax.set_ylim(lo * 1.6 if lo < 0 else -0.01, max(max(diffs), 0) + abs(lo) * 0.25 + 1e-3)
+    lo, hi = min(diffs + [0]), max(diffs + [0])
+    pad = (hi - lo) * 0.15 + 1e-3
+    ax.set_ylim(lo - pad, hi + pad)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)

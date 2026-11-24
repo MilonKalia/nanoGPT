@@ -115,6 +115,15 @@ def test_curves_deduplicate_resumed_iterations(tmp_path):
     assert its.tolist() == [250, 500, 750] and val.tolist() == [2.0, 1.95, 1.8]
 
 
+def test_grouped_breakdown_values_follow_the_first_runs_groups():
+    pb = load_tool("plot_breakdowns")
+    a = dict(by_match=[dict(group="0", difference=-0.1), dict(group="1-3", difference=-0.2)])
+    b = dict(by_match=[dict(group="1-3", difference=-0.4)])
+    groups, values = pb.grouped_values([("a", a), ("b", b)], "by_match")
+    assert groups == ["0", "1-3"]
+    assert values[0].tolist() == [-0.1, -0.2] and np.isnan(values[1, 0]) and values[1, 1] == -0.4
+
+
 def test_tools_run_end_to_end(tmp_path):
     tiny_checkpoint(tmp_path / "match.pt", "graded")
     tiny_checkpoint(tmp_path / "base.pt", "none")
@@ -142,6 +151,8 @@ def test_tools_run_end_to_end(tmp_path):
                 f.write(json.dumps(dict(iter=it, bytes=it * 65536, val_bpc=2 - it / 2000 - (0.01 if name == "m" else 0),
                                         train_bpc=1.0, lr=1e-3, elapsed_s=it)) + "\n")
     run("tools/plot_curves.py", "--pair", f"x={tmp_path / 'b'},{tmp_path / 'm'}", "--out", str(out))
+    summary = str(out / "summary.json")
+    run("tools/plot_breakdowns.py", "--run", f"one={summary}", "--run", f"two={summary}", "--out", str(out))
     for fig in ("fig_bias_tables.png", "fig_copy_attention.png", "fig_gain_by_match.png", "fig_gain_by_class.png",
-                "fig_curves.png", "fig_gap.png"):
+                "fig_curves.png", "fig_gap.png", "fig_breakdown_match.png", "fig_breakdown_class.png"):
         assert (out / fig).exists(), fig
